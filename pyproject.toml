@@ -1,8 +1,28 @@
 [project]
 name = "newsradar"
-version = "5.0.0"
+version = "5.0.1"
 description = "Mobile-first personal technology and research news monitor"
 requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "httpx>=0.28,<1",
+    "SQLAlchemy>=2.0,<3",
+    "pydantic-settings>=2.7,<3",
+    "jinja2>=3.1,<4",
+    "python-multipart>=0.0.20,<1",
+    "itsdangerous>=2.2,<3",
+    "APScheduler>=3.10,<4",
+    "feedparser>=6.0,<7",
+    "beautifulsoup4>=4.12,<5",
+    "google-api-python-client>=2.160,<3",
+    "google-auth>=2.38,<3",
+    "google-auth-oauthlib>=1.2,<2",
+    "google-auth-httplib2>=0.2,<1",
+    "trafilatura>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+]
 
 [tool.vercel]
 entrypoint = "main:app"
