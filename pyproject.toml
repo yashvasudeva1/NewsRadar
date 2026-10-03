@@ -1,0 +1,8 @@
+[project]
+name = "newsradar"
+version = "5.0.0"
+description = "Mobile-first personal technology and research news monitor"
+requires-python = ">=3.12,<3.13"
+
+[tool.vercel]
+entrypoint = "main.py"

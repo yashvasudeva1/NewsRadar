@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ app_name }} · Settings</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">{{ app_name }}</div>
+      <div class="muted">Settings</div>
+    </div>
+    <nav><a href="/">News</a><a href="/settings">Settings</a></nav>
+  </header>
+
+  <main class="container narrow">
+    <section class="panel">
+      <h1>Interests</h1>
+      <p class="muted">Add keywords. A title match scores higher than a description-only match.</p>
+      <div class="form-row">
+        <input id="keyword" placeholder="e.g. OpenAI" />
+        <input id="weight" type="number" value="1" min="0.1" max="10" step="0.1" />
+        <button onclick="addInterest()">Add</button>
+      </div>
+      <div id="interests"></div>
+    </section>
+
+    <section class="panel">
+      <h1>Gmail notifications</h1>
+      <p class="muted">Connect the Google account that NewsRadar will use to send digests.</p>
+      <a class="button-link" href="/api/auth/gmail">Connect Gmail</a>
+      <div class="form-row top-gap">
+        <input id="recipient" placeholder="Notification recipient email" />
+        <button onclick="saveRecipient()">Save recipient</button>
+      </div>
+      <button class="secondary" onclick="testEmail()">Send test email</button>
+      <div id="gmailStatus" class="status"></div>
+    </section>
+
+    <section class="panel">
+      <h1>System</h1>
+      <div id="system"></div>
+    </section>
+  </main>
+
+  <script>
+    async function load() {
+      const [interestRes, statsRes] = await Promise.all([
+        fetch('/api/interests'),
+        fetch('/api/stats')
+      ]);
+      const interests = await interestRes.json();
+      const stats = await statsRes.json();
+
+      document.getElementById('interests').innerHTML = interests.map(x => `
+        <div class="interest">
+          <label><input type="checkbox" ${x.enabled ? 'checked' : ''} onchange="toggleInterest(${x.id}, this.checked)"> ${escapeHtml(x.keyword)}</label>
+          <span>weight ${x.weight}</span>
+          <button class="danger" onclick="deleteInterest(${x.id})">Delete</button>
+        </div>`).join('');
+
+      document.getElementById('recipient').value = stats.notification_recipient || '';
+      document.getElementById('gmailStatus').textContent = stats.gmail_connected ? 'Gmail connected.' : 'Gmail not connected.';
+      document.getElementById('system').innerHTML = `
+        <div class="system-row"><span>Database</span><strong>connected</strong></div>
+        <div class="system-row"><span>Last fetch</span><strong>${stats.last_fetch_at || 'never'}</strong></div>
+        <div class="system-row"><span>Fetch status</span><strong>${stats.last_fetch_status}</strong></div>`;
+    }
+
+    async function addInterest() {
+      const keyword = document.getElementById('keyword').value.trim();
+      const weight = Number(document.getElementById('weight').value);
+      if (!keyword) return;
+      await fetch('/api/interests', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({keyword, weight})
+      });
+      document.getElementById('keyword').value = '';
+      load();
+    }
+
+    async function toggleInterest(id, enabled) {
+      await fetch(`/api/interests/${id}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled})
+      });
+    }
+
+    async function deleteInterest(id) {
+      await fetch(`/api/interests/${id}`, {method:'DELETE'});
+      load();
+    }
+
+    async function saveRecipient() {
+      const recipient = document.getElementById('recipient').value.trim();
+      const body = new URLSearchParams({recipient});
+      const res = await fetch('/api/settings/recipient', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body});
+      const data = await res.json();
+      alert(res.ok ? `Saved: ${data.recipient}` : (data.detail || 'Failed'));
+    }
+
+    async function testEmail() {
+      const res = await fetch('/api/notifications/test', {method:'POST'});
+      const data = await res.json();
+      alert(res.ok ? 'Test email sent.' : (data.detail || 'Failed')); 
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    load();
+  </script>
+</body>
+</html>

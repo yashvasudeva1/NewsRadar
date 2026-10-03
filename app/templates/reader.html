@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>{{ app_name }} Reader</title><link rel="stylesheet" href="/static/style.css"></head>
+<body class="reader-body">
+<header class="reader-top"><a href="/">← NewsRadar</a><a id="sourceLink" target="_blank" rel="noopener">Open source ↗</a></header>
+<main class="reader-shell">
+  <div id="readerMeta" class="reader-meta">Loading…</div>
+  <h1 id="readerTitle"></h1>
+  <div id="readerByline" class="reader-byline"></div>
+  <div id="readerImage"></div>
+  <p id="readerDesc" class="reader-desc"></p>
+  <article id="readerContent" class="reader-content"></article>
+  <div id="readerFallback" class="reader-fallback hidden">This source did not expose readable content to the in-app reader. Use the source link above.</div>
+</main>
+<script>
+const articleId={{ article_id }};
+const esc=s=>String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function boot(){const r=await fetch('/api/reader/article/'+articleId);const d=await r.json();document.title=(d.title||'Reader')+' · NewsRadar';document.getElementById('readerTitle').textContent=d.title||'';document.getElementById('readerByline').textContent=[d.author,d.published?new Date(d.published).toLocaleString():null].filter(Boolean).join(' · ');document.getElementById('readerMeta').textContent='In-app reader';document.getElementById('readerDesc').textContent=d.description||'';document.getElementById('sourceLink').href=d.canonical_url||'#';if(d.image_url)document.getElementById('readerImage').innerHTML=`<img src="${esc(d.image_url)}" alt="" loading="lazy">`;if(d.paragraphs?.length){document.getElementById('readerContent').innerHTML=d.paragraphs.map(x=>`<p>${esc(x)}</p>`).join('')}else document.getElementById('readerFallback').classList.remove('hidden');}
+boot();
+</script></body></html>

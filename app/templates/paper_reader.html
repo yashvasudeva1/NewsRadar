@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>{{ app_name }} Paper</title><link rel="stylesheet" href="/static/style.css"></head>
+<body class="reader-body">
+<header class="reader-top"><a href="/?view=research">← Research</a><div class="reader-links"><a id="landing" target="_blank" rel="noopener">Abstract ↗</a><a id="pdf" target="_blank" rel="noopener">PDF ↗</a></div></header>
+<main class="paper-reader-shell"><div id="paperMeta" class="reader-meta">Loading…</div><h1 id="paperTitle"></h1><div id="paperAuthors" class="reader-byline"></div><div id="paperVenue" class="reader-byline"></div><p id="paperAbstract" class="reader-desc"></p><div id="pdfWrap" class="pdf-wrap"><iframe id="pdfFrame" title="Research paper PDF"></iframe></div></main>
+<script>
+const id={{ item_id }};const esc=s=>String(s||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function boot(){const r=await fetch('/api/research/items/'+id);const d=await r.json();document.title=(d.title||'Paper')+' · NewsRadar';document.getElementById('paperTitle').textContent=d.title||'';document.getElementById('paperAuthors').textContent=(d.authors||[]).join(', ');document.getElementById('paperVenue').textContent=[d.venue,d.published_at?new Date(d.published_at).toLocaleDateString():null,d.citation_count?`${d.citation_count} citations`:null].filter(Boolean).join(' · ');document.getElementById('paperAbstract').textContent=d.abstract||'';document.getElementById('landing').href=d.landing_url||'#';document.getElementById('pdf').href=d.pdf_url||d.landing_url||'#';if(d.pdf_url){document.getElementById('pdfFrame').src=d.pdf_url}else document.getElementById('pdfWrap').innerHTML='<div class="empty">No PDF URL was supplied. Use the abstract/source link above.</div>';}
+boot();
+</script></body></html>

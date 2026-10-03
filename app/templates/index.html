@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>{{ app_name }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">NewsRadar</a>
+  <div class="top-actions">
+    <span class="live-dot" title="Collectors active"></span>
+    <button class="icon-btn" id="refreshBtn" title="Refresh">↻</button>
+    <button class="icon-btn" id="filterBtn" title="Filters">≡</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+  </div>
+</header>
+
+<main class="shell">
+  <section class="mast">
+    <div class="mast-copy">
+      <div class="eyebrow">TECH / RESEARCH</div>
+      <h1 id="pageTitle">Technology</h1>
+      <p id="pageSubtitle">Live technical news, first-party announcements and developer signals.</p>
+    </div>
+    <div class="sync" id="syncText">Syncing…</div>
+  </section>
+
+  <nav class="main-tabs" aria-label="Primary">
+    <button class="main-tab active" data-view="news">News</button>
+    <button class="main-tab" data-view="research">Research</button>
+  </nav>
+
+  <section id="newsView">
+    <div class="searchbar">
+      <span>⌕</span>
+      <input id="search" type="search" placeholder="Search companies, products, topics…" autocomplete="off">
+      <select id="newsSort">
+        <option value="recent">Newest</option>
+        <option value="score">Relevance</option>
+        <option value="oldest">Oldest</option>
+      </select>
+    </div>
+
+    <div class="topic-row" id="newsTopics">
+      <button class="pill active" data-topic="">All</button>
+      <button class="pill" data-topic="AI">AI</button>
+      <button class="pill" data-topic="Developers">Developers</button>
+      <button class="pill" data-topic="Cloud">Cloud</button>
+      <button class="pill" data-topic="Cybersecurity">Security</button>
+      <button class="pill" data-topic="Chips">Chips</button>
+      <button class="pill" data-topic="Robotics">Robotics</button>
+      <button class="pill" data-topic="Open Source">Open source</button>
+      <button class="pill" data-topic="Startups">Startups</button>
+      <button class="pill" data-topic="Hardware">Hardware</button>
+      <button class="pill" data-topic="Web">Web</button>
+      <button class="pill" data-topic="Data">Data</button>
+      <button class="pill" data-topic="Quantum">Quantum</button>
+    </div>
+
+    <div class="feed-head"><span id="newsCount">0 stories</span><span id="newsMeta"></span></div>
+    <section id="newsFeed" class="stream"></section>
+    <button id="loadNews" class="load-more hidden">Load more</button>
+  </section>
+
+  <section id="researchView" class="hidden">
+    <div class="searchbar">
+      <span>⌕</span>
+      <input id="researchSearch" type="search" placeholder="Search papers, authors, venues…" autocomplete="off">
+      <select id="researchSort">
+        <option value="recent">Newest</option>
+        <option value="score">Relevance</option>
+        <option value="citations">Citations</option>
+        <option value="oldest">Oldest</option>
+      </select>
+    </div>
+
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-research-type="all">All research</button>
+      <button class="sub-tab" data-research-type="paper">Papers</button>
+      <button class="sub-tab" data-research-type="news">Research news</button>
+    </div>
+
+    <div class="topic-row">
+      <button class="research-topic pill active" data-topic="">All</button>
+      <button class="research-topic pill" data-topic="AI">AI</button>
+      <button class="research-topic pill" data-topic="Machine Learning">ML</button>
+      <button class="research-topic pill" data-topic="NLP">NLP</button>
+      <button class="research-topic pill" data-topic="Computer Vision">Vision</button>
+      <button class="research-topic pill" data-topic="Robotics">Robotics</button>
+      <button class="research-topic pill" data-topic="Security">Security</button>
+      <button class="research-topic pill" data-topic="Systems">Systems</button>
+      <button class="research-topic pill" data-topic="Quantum">Quantum</button>
+      <button class="research-topic pill" data-topic="Chips">Chips</button>
+    </div>
+
+    <div class="research-intro">
+      <div><strong>Research stream</strong><span id="researchMeta">arXiv · Hugging Face Papers · Semantic Scholar · OpenAlex · research news</span></div>
+      <button id="researchRefresh" class="compact-btn">↻ collect</button>
+    </div>
+
+    <section id="researchFeed" class="research-stream"></section>
+    <button id="loadResearch" class="load-more hidden">Load more</button>
+  </section>
+</main>
+
+<!-- filters -->
+<div id="filterOverlay" class="overlay hidden">
+  <div class="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head"><div><strong>Filters</strong><span>Refine the current stream</span></div><button class="close" data-close="filterOverlay">×</button></div>
+    <div class="drawer-body">
+      <div id="newsFilters">
+        <label>Source</label><select id="sourceFilter" class="field"><option value="">All sources</option></select>
+        <label>Interest</label><select id="matchFilter" class="field"><option value="">Any interest</option></select>
+        <label>Time window</label><select id="hoursFilter" class="field"><option value="6">6 hours</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168" selected>7 days</option><option value="720">30 days</option></select>
+        <label>Minimum relevance</label><input id="scoreFilter" class="range" type="range" min="0" max="20" step="0.5" value="0">
+        <div class="range-line"><span>0</span><b id="scoreValue">0</b></div>
+        <label class="switch-row"><span>Official only</span><input id="officialFilter" type="checkbox"><i></i></label>
+        <label class="switch-row"><span>Saved only</span><input id="savedFilter" type="checkbox"><i></i></label>
+      </div>
+      <div id="researchFilters" class="hidden">
+        <label>Source</label><select id="researchSourceFilter" class="field"><option value="">All research sources</option></select>
+        <label>Author</label><select id="researchAuthorFilter" class="field"><option value="">All authors</option></select>
+        <label>Time window</label><select id="researchDaysFilter" class="field"><option value="1">1 day</option><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
+        <label>Minimum relevance</label><input id="researchScoreFilter" class="range" type="range" min="0" max="20" step="0.5" value="0">
+        <div class="range-line"><span>0</span><b id="researchScoreValue">0</b></div>
+        <label class="switch-row"><span>Saved only</span><input id="researchSavedFilter" type="checkbox"><i></i></label>
+      </div>
+      <button id="resetFilters" class="drawer-btn">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- settings -->
+<div id="settingsOverlay" class="overlay hidden">
+  <div class="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head"><div><strong>Settings</strong><span>Only shown when you ask for it</span></div><button class="close" data-close="settingsOverlay">×</button></div>
+    <div class="drawer-body">
+      <section class="setting-section">
+        <div class="setting-title">Gmail</div>
+        <div id="gmailState" class="setting-muted">Checking…</div>
+        <a href="/api/auth/gmail" class="drawer-btn primary-btn">Connect Gmail</a>
+        <div class="split"><input id="recipient" class="field" placeholder="you@example.com"><button id="saveRecipient" class="drawer-btn">Save</button></div>
+        <button id="testEmail" class="drawer-btn">Send test email</button>
+      </section>
+      <section class="setting-section">
+        <div class="setting-title">Interests</div>
+        <div class="split"><input id="newInterest" class="field" placeholder="OpenAI, CUDA, agents…"><button id="addInterest" class="drawer-btn">Add</button></div>
+        <div id="interestList" class="interest-list"></div>
+      </section>
+      <section class="setting-section">
+        <div class="setting-title">Collection</div>
+        <div class="collector"><span>Official tech sources</span><b id="officialStatus">—</b></div>
+        <div class="collector"><span>Research sources</span><b id="researchStatus">—</b></div>
+        <div class="collector"><span>GDELT</span><b id="gdeltStatus">—</b></div>
+        <div class="collector"><span>Google News</span><b id="googleStatus">—</b></div>
+        <div class="collector"><span>Currents</span><b id="currentsStatus">—</b></div>
+        <button id="fetchAll" class="drawer-btn">Collect everything now</button>
+      </section>
+      <section class="setting-section">
+        <div class="setting-title">Notifications</div>
+        <label>Relevance threshold</label>
+        <input id="notifyThreshold" class="range" type="range" min="0" max="20" step="0.5" value="5">
+        <div class="range-line"><span>Higher = fewer alerts</span><b id="notifyThresholdValue">5</b></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const state = {
+  view:'news', newsOffset:0, researchOffset:0, batch:60,
+  newsTopic:'', researchTopic:'', researchType:'all', loading:false, researchLoading:false,
+  newsFilters:{source:'',matched:'',min_score:0,hours:168,official:false,saved:false},
+  researchFilters:{source:'',author:'',min_score:0,days:30,saved:false}
+};
+const $ = id => document.getElementById(id);
+function esc(s=''){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function ago(v){if(!v)return ''; const d=new Date(v), diff=Math.max(0,Date.now()-d.getTime())/1000; if(diff<60)return Math.floor(diff)+'s'; if(diff<3600)return Math.floor(diff/60)+'m'; if(diff<86400)return Math.floor(diff/3600)+'h'; return Math.floor(diff/86400)+'d';}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),2400);}
+function articleCard(a){
+  const tags=(a.categories||[]).filter(x=>x&&x!=='Technology').slice(0,4).map(x=>`<span class="tag">${esc(x)}</span>`).join('');
+  const match=(a.matched_keywords||[]).slice(0,3).map(x=>`<span class="tag match">${esc(x)}</span>`).join('');
+  return `<article class="story"><div class="story-copy"><div class="story-top"><span class="source">${esc(a.source_domain||'source')}</span>${a.is_official?'<span class="official">official</span>':''}<span>${ago(a.published_at)} ago</span>${a.author?`<span>${esc(a.author)}</span>`:''}</div><h2>${esc(a.title)}</h2>${a.description?`<p>${esc(a.description)}</p>`:''}<div class="story-foot"><div class="tags">${tags}${match}</div><span class="score">${a.relevance_score?a.relevance_score.toFixed(1):''}</span></div></div><div class="story-side"><button title="Read here" onclick="location.href='/read/news/${a.id}'">↗</button><button title="Save" onclick="saveNews(${a.id},this)">${a.is_saved?'★':'☆'}</button><button title="Hide" onclick="hideNews(${a.id},this)">×</button></div></article>`;
+}
+function researchCard(r){
+  const type=r.item_type==='paper'?'PAPER':'RESEARCH NEWS';
+  const authors=(r.authors||[]).slice(0,3).join(', ');
+  const cats=(r.categories||[]).filter(x=>!['Research','Hugging Face Papers'].includes(x)).slice(0,4).map(x=>`<span class="tag">${esc(x)}</span>`).join('');
+  const match=(r.matched_keywords||[]).slice(0,3).map(x=>`<span class="tag match">${esc(x)}</span>`).join('');
+  const link=r.item_type==='paper'?`/read/paper/${r.id}`:`/read/news-research/${r.id}`;
+  return `<article class="research-card"><div class="research-card-main"><div class="story-top"><span class="source">${esc(r.source||'research')}</span><span class="type-label">${type}</span><span>${ago(r.published_at)} ago</span>${r.citation_count?`<span>${r.citation_count} cites</span>`:''}</div><h2>${esc(r.title)}</h2>${authors?`<div class="authors">${esc(authors)}</div>`:''}${r.venue?`<div class="venue">${esc(r.venue)}</div>`:''}<p>${esc((r.abstract||'').slice(0,620))}</p><div class="story-foot"><div class="tags">${cats}${match}</div><span class="score">${r.relevance_score?r.relevance_score.toFixed(1):''}</span></div></div><div class="story-side"><button title="Read" onclick="location.href='${link}'">↗</button><button title="Save" onclick="saveResearch(${r.id},this)">${r.is_saved?'★':'☆'}</button><button title="Hide" onclick="hideResearch(${r.id},this)">×</button></div></article>`;
+}
+function buildNewsQuery(){const p=new URLSearchParams({sort:$('newsSort').value,offset:state.newsOffset,limit:state.batch,hours:state.newsFilters.hours}); if(state.newsTopic)p.set('topic',state.newsTopic); if(state.newsFilters.source)p.set('source',state.newsFilters.source); if(state.newsFilters.matched)p.set('matched',state.newsFilters.matched); if(state.newsFilters.min_score)p.set('min_score',state.newsFilters.min_score); if(state.newsFilters.official)p.set('official','true'); if(state.newsFilters.saved)p.set('saved','true'); const q=$('search').value.trim();if(q)p.set('q',q);return p;}
+function buildResearchQuery(){const p=new URLSearchParams({item_type:state.researchType,sort:$('researchSort').value,offset:state.researchOffset,limit:state.batch,days:state.researchFilters.days}); if(state.researchTopic)p.set('topic',state.researchTopic); if(state.researchFilters.source)p.set('source',state.researchFilters.source); if(state.researchFilters.author)p.set('author',state.researchFilters.author); if(state.researchFilters.min_score)p.set('min_score',state.researchFilters.min_score); if(state.researchFilters.saved)p.set('saved','true'); const q=$('researchSearch').value.trim();if(q)p.set('q',q);return p;}
+async function loadNews(reset=false){if(state.loading)return;state.loading=true;if(reset){state.newsOffset=0;$('newsFeed').innerHTML='<div class="loading">Loading technology…</div>';}try{const r=await fetch('/api/news?'+buildNewsQuery());if(!r.ok)throw new Error(await r.text());const items=await r.json();if(reset)$('newsFeed').innerHTML='';if(!items.length&&state.newsOffset===0)$('newsFeed').innerHTML='<div class="empty">No technology stories match the current filters.</div>';else $('newsFeed').insertAdjacentHTML('beforeend',items.map(articleCard).join(''));$('loadNews').classList.toggle('hidden',items.length<state.batch);state.newsOffset+=items.length;$('newsCount').textContent=`${document.querySelectorAll('#newsFeed .story').length} stories`;}catch(e){$('newsFeed').innerHTML=`<div class="empty">Could not load the feed.<br><small>${esc(e.message||e)}</small></div>`}finally{state.loading=false}}
+async function loadResearch(reset=false){if(state.researchLoading)return;state.researchLoading=true;if(reset){state.researchOffset=0;$('researchFeed').innerHTML='<div class="loading">Loading research…</div>';}try{const r=await fetch('/api/research/items?'+buildResearchQuery());if(!r.ok)throw new Error(await r.text());const items=await r.json();if(reset)$('researchFeed').innerHTML='';if(!items.length&&state.researchOffset===0)$('researchFeed').innerHTML='<div class="empty">No research items match the current filters.</div>';else $('researchFeed').insertAdjacentHTML('beforeend',items.map(researchCard).join(''));$('loadResearch').classList.toggle('hidden',items.length<state.batch);state.researchOffset+=items.length;$('researchMeta').textContent=`${document.querySelectorAll('#researchFeed .research-card').length} items · arXiv · HF · S2 · OpenAlex · research news`;}catch(e){$('researchFeed').innerHTML=`<div class="empty">Could not load research.<br><small>${esc(e.message||e)}</small></div>`}finally{state.researchLoading=false}}
+async function refreshStats(){const r=await fetch('/api/stats');const s=await r.json();$('syncText').textContent=s.last_fetch_at?`sync ${ago(s.last_fetch_at)} ago`:'not synced';$('gmailState').textContent=s.gmail_connected?'Connected':'Not connected';$('gmailState').className=s.gmail_connected?'setting-muted ok':'setting-muted';$('recipient').value=s.notification_recipient||'';$('notifyThreshold').value=s.notification_threshold??5;$('notifyThresholdValue').textContent=Number(s.notification_threshold??5).toFixed(1);const off=s.last_source_status?.official||{};const ok=Object.values(off).filter(x=>x.ok).length;const total=Object.keys(off).length;$('officialStatus').textContent=total?`${ok}/${total}`:'—';const rs=s.last_research_source_status||{};const rok=Object.values(rs).filter(x=>x.ok).length;const rtotal=Object.keys(rs).length;$('researchStatus').textContent=rtotal?`${rok}/${rtotal}`:'—';$('gdeltStatus').textContent=s.last_source_status?.gdelt?(s.last_source_status.gdelt.ok?'OK':'ERR'):'—';$('googleStatus').textContent=s.last_source_status?.google_news?(s.last_source_status.google_news.ok?'OK':'ERR'):'—';$('currentsStatus').textContent=s.currents_api?'ON':'—';await loadInterests();}
+async function loadFilters(){const r=await fetch('/api/filters');const f=await r.json();$('sourceFilter').innerHTML='<option value="">All sources</option>'+(f.sources||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');$('matchFilter').innerHTML='<option value="">Any interest</option>'+(f.matched_keywords||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');}
+async function loadResearchFilters(){const r=await fetch('/api/research/filters');const f=await r.json();$('researchSourceFilter').innerHTML='<option value="">All research sources</option>'+(f.sources||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');$('researchAuthorFilter').innerHTML='<option value="">All authors</option>'+(f.authors||[]).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');}
+async function loadInterests(){const r=await fetch('/api/interests');const items=await r.json();$('interestList').innerHTML=items.map(i=>`<div class="interest"><label><input type="checkbox" ${i.enabled?'checked':''} onchange="toggleInterest(${i.id},this.checked)"><span>${esc(i.keyword)}</span></label><button onclick="deleteInterest(${i.id})">×</button></div>`).join('');}
+async function toggleInterest(id,enabled){await fetch('/api/interests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});}
+async function deleteInterest(id){await fetch('/api/interests/'+id,{method:'DELETE'});loadInterests();}
+async function saveNews(id,btn){const r=await fetch('/api/news/'+id+'/save',{method:'POST'});const d=await r.json();btn.textContent=d.saved?'★':'☆';}
+async function hideNews(id,btn){await fetch('/api/news/'+id+'/hide',{method:'POST'});btn.closest('.story').remove();}
+async function saveResearch(id,btn){const r=await fetch('/api/research/'+id+'/save',{method:'POST'});const d=await r.json();btn.textContent=d.saved?'★':'☆';}
+async function hideResearch(id,btn){await fetch('/api/research/'+id+'/hide',{method:'POST'});btn.closest('.research-card').remove();}
+function openOverlay(id){$(id).classList.remove('hidden');document.body.classList.add('locked');}
+function closeOverlay(id){$(id).classList.add('hidden');document.body.classList.remove('locked');}
+
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeOverlay(b.dataset.close)));
+document.querySelectorAll('.main-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.main-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.view=b.dataset.view;$('newsView').classList.toggle('hidden',state.view!=='news');$('researchView').classList.toggle('hidden',state.view!=='research');$('newsFilters').classList.toggle('hidden',state.view!=='news');$('researchFilters').classList.toggle('hidden',state.view!=='research');$('pageTitle').textContent=state.view==='news'?'Technology':'Research';$('pageSubtitle').textContent=state.view==='news'?'Live technical news, first-party announcements and developer signals.':'Papers, research releases and research news from scholarly indexes and labs.';loadFilters();loadResearchFilters();state.view==='news'?loadNews(true):loadResearch(true);}));
+$('refreshBtn').addEventListener('click',()=>state.view==='news'?loadNews(true):loadResearch(true));
+$('filterBtn').addEventListener('click',async()=>{state.view==='news'?await loadFilters():await loadResearchFilters();openOverlay('filterOverlay');});
+$('settingsBtn').addEventListener('click',()=>openOverlay('settingsOverlay'));
+$('newsSort').addEventListener('change',()=>loadNews(true));
+$('researchSort').addEventListener('change',()=>loadResearch(true));
+$('search').addEventListener('input',()=>{clearTimeout(window.t);window.t=setTimeout(()=>loadNews(true),300)});
+$('researchSearch').addEventListener('input',()=>{clearTimeout(window.rt);window.rt=setTimeout(()=>loadResearch(true),300)});
+document.querySelectorAll('#newsTopics .pill').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#newsTopics .pill').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.newsTopic=b.dataset.topic;loadNews(true);}));
+document.querySelectorAll('.research-topic').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.research-topic').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.researchTopic=b.dataset.topic;loadResearch(true);}));
+document.querySelectorAll('.sub-tab').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.sub-tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.researchType=b.dataset.researchType;loadResearch(true);}));
+$('loadNews').addEventListener('click',()=>loadNews(false));$('loadResearch').addEventListener('click',()=>loadResearch(false));
+$('sourceFilter').addEventListener('change',e=>{state.newsFilters.source=e.target.value;closeOverlay('filterOverlay');loadNews(true)});$('matchFilter').addEventListener('change',e=>{state.newsFilters.matched=e.target.value;closeOverlay('filterOverlay');loadNews(true)});$('hoursFilter').addEventListener('change',e=>{state.newsFilters.hours=Number(e.target.value);closeOverlay('filterOverlay');loadNews(true)});$('officialFilter').addEventListener('change',e=>{state.newsFilters.official=e.target.checked;closeOverlay('filterOverlay');loadNews(true)});$('savedFilter').addEventListener('change',e=>{state.newsFilters.saved=e.target.checked;closeOverlay('filterOverlay');loadNews(true)});$('scoreFilter').addEventListener('input',e=>{state.newsFilters.min_score=Number(e.target.value);$('scoreValue').textContent=e.target.value;loadNews(true)});
+$('researchSourceFilter').addEventListener('change',e=>{state.researchFilters.source=e.target.value;closeOverlay('filterOverlay');loadResearch(true)});$('researchAuthorFilter').addEventListener('change',e=>{state.researchFilters.author=e.target.value;closeOverlay('filterOverlay');loadResearch(true)});$('researchDaysFilter').addEventListener('change',e=>{state.researchFilters.days=Number(e.target.value);closeOverlay('filterOverlay');loadResearch(true)});$('researchSavedFilter').addEventListener('change',e=>{state.researchFilters.saved=e.target.checked;closeOverlay('filterOverlay');loadResearch(true)});$('researchScoreFilter').addEventListener('input',e=>{state.researchFilters.min_score=Number(e.target.value);$('researchScoreValue').textContent=e.target.value;loadResearch(true)});
+$('resetFilters').addEventListener('click',()=>{state.newsFilters={source:'',matched:'',min_score:0,hours:168,official:false,saved:false};state.researchFilters={source:'',author:'',min_score:0,days:30,saved:false};$('scoreFilter').value=0;$('scoreValue').textContent='0';$('researchScoreFilter').value=0;$('researchScoreValue').textContent='0';$('hoursFilter').value='168';$('researchDaysFilter').value='30';$('officialFilter').checked=false;$('savedFilter').checked=false;$('researchSavedFilter').checked=false;closeOverlay('filterOverlay');state.view==='news'?loadNews(true):loadResearch(true);});
+$('saveRecipient').addEventListener('click',async()=>{const r=await fetch('/api/settings/recipient',{method:'POST',body:new URLSearchParams({recipient:$('recipient').value})});toast(r.ok?'Recipient saved':'Could not save recipient');});
+$('testEmail').addEventListener('click',async()=>{const r=await fetch('/api/notifications/test',{method:'POST'});const d=await r.json().catch(()=>({}));toast(r.ok?'Test email sent':(d.detail||'Email failed'));});
+$('addInterest').addEventListener('click',async()=>{const k=$('newInterest').value.trim();if(!k)return;const r=await fetch('/api/interests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keyword:k,weight:1})});if(r.ok){$('newInterest').value='';loadInterests();toast('Interest added')}});
+$('notifyThreshold').addEventListener('input',e=>$('notifyThresholdValue').textContent=Number(e.target.value).toFixed(1));$('notifyThreshold').addEventListener('change',e=>fetch('/api/settings/notification-threshold',{method:'POST',body:new URLSearchParams({value:e.target.value})}));
+$('fetchAll').addEventListener('click',async()=>{toast('Collecting news + research…');const r=await fetch('/api/fetch-now',{method:'POST'});toast(r.ok?'Collection complete':'Collection failed');if(r.ok){await refreshStats();state.view==='news'?loadNews(true):loadResearch(true)}});
+$('researchRefresh').addEventListener('click',async()=>{toast('Collecting research…');const r=await fetch('/api/research/fetch-now',{method:'POST'});toast(r.ok?'Research updated':'Research fetch failed');if(r.ok){await refreshStats();loadResearch(true)}});
+(async()=>{await refreshStats();await loadNews(true)})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+__pycache__
+*.py[cod]
+.venv
+venv
+.env
+credentials.json
+token.json
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+data/*.db
