@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -58,6 +59,8 @@ async def lifespan(app: FastAPI):
     # -----------------------------------------------------
 
     try:
+        if not os.getenv("VERCEL"):
+            (BASE_DIR.parent / "data").mkdir(parents=True, exist_ok=True)
         init_db()
         seed_interests()
 

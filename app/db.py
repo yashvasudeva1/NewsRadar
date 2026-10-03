@@ -1,4 +1,7 @@
+import os
+import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -17,6 +20,9 @@ def normalize_database_url(url: str) -> str:
         return "postgresql+psycopg://" + url[len("postgres://"): ]
     if url.startswith("postgresql://"):
         return "postgresql+psycopg://" + url[len("postgresql://"): ]
+    if os.getenv("VERCEL") and url.startswith("sqlite"):
+        tmp_db = Path(tempfile.gettempdir()) / "news.db"
+        return f"sqlite:///{tmp_db.as_posix()}"
     return url
 
 
