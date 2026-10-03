@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -97,7 +97,18 @@ app = FastAPI(
         "with Gmail notifications."
     ),
     lifespan=lifespan,
+    redirect_slashes=False,
 )
+
+
+@app.middleware("http")
+async def normalize_path_middleware(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if path == "/main.py":
+        request.scope["path"] = "/"
+    elif path.startswith("/main.py/"):
+        request.scope["path"] = path[len("/main.py"):]
+    return await call_next(request)
 
 
 # =========================================================
@@ -201,6 +212,14 @@ def settings_page():
         url="/",
         status_code=307,
     )
+
+
+@app.get(
+    "/favicon.ico",
+    include_in_schema=False,
+)
+def favicon():
+    return Response(status_code=204)
 
 
 # =========================================================

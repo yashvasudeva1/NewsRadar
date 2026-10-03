@@ -4,11 +4,5 @@
       "path": "/api/cron/morning-digest",
       "schedule": "30 3 * * *"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/main.py"
-    }
   ]
 }
