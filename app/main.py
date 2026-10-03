@@ -1,11 +1,9 @@
-import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import os
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -24,21 +22,59 @@ from .services.news_pipeline import (
     fetch_research_and_process_news,
 )
 
+
 logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
-scheduler = AsyncIOScheduler()
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Application startup/shutdown lifecycle.
+
+    On Vercel:
+        No persistent scheduler is started.
+
+    Locally:
+        APScheduler is started so the application can continuously
+        collect news and research.
+    """
+
+    # ---------------------------------------------------------
+    # Database initialization
+    # ---------------------------------------------------------
+
     (PROJECT_DIR / "data").mkdir(parents=True, exist_ok=True)
+
     init_db()
     seed_interests()
 
+    # ---------------------------------------------------------
+    # Detect Vercel
+    # ---------------------------------------------------------
+
     is_vercel = bool(os.getenv("VERCEL"))
+
+    # ---------------------------------------------------------
+    # Local scheduler only
+    # ---------------------------------------------------------
+
     if settings.enable_scheduler and not is_vercel:
+
+        # IMPORTANT:
+        # APScheduler is imported only here.
+        # Vercel therefore doesn't need APScheduler merely to
+        # import and initialize the FastAPI application.
+
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+        scheduler = AsyncIOScheduler()
+
+        # Official sources
         scheduler.add_job(
             fetch_official_and_process_news,
             "interval",
@@ -48,8 +84,11 @@ async def lifespan(app: FastAPI):
             coalesce=True,
             max_instances=1,
             misfire_grace_time=120,
-            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=3),
+            next_run_time=datetime.now(timezone.utc)
+            + timedelta(seconds=3),
         )
+
+        # Aggregators
         scheduler.add_job(
             fetch_aggregators_and_process_news,
             "interval",
@@ -59,9 +98,13 @@ async def lifespan(app: FastAPI):
             coalesce=True,
             max_instances=1,
             misfire_grace_time=120,
-            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=7),
+            next_run_time=datetime.now(timezone.utc)
+            + timedelta(seconds=7),
         )
+
+        # Currents
         if settings.currents_api_key:
+
             scheduler.add_job(
                 fetch_currents_and_process_news,
                 "interval",
@@ -71,9 +114,13 @@ async def lifespan(app: FastAPI):
                 coalesce=True,
                 max_instances=1,
                 misfire_grace_time=120,
-                next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
+                next_run_time=datetime.now(timezone.utc)
+                + timedelta(seconds=10),
             )
+
+        # Research
         if settings.enable_research_collectors:
+
             scheduler.add_job(
                 fetch_research_and_process_news,
                 "interval",
@@ -83,28 +130,82 @@ async def lifespan(app: FastAPI):
                 coalesce=True,
                 max_instances=1,
                 misfire_grace_time=120,
-                next_run_time=datetime.now(timezone.utc) + timedelta(seconds=14),
+                next_run_time=datetime.now(timezone.utc)
+                + timedelta(seconds=14),
             )
+
         scheduler.start()
+
         logger.info(
-            "Scheduler started: official=%sm, aggregators=%sm, currents=%sm, research=%sm",
+            "Local scheduler started: "
+            "official=%sm, aggregators=%sm, currents=%sm, research=%sm",
             settings.official_poll_minutes,
             settings.aggregator_poll_minutes,
             settings.currents_poll_minutes,
             settings.research_poll_minutes,
         )
 
+    else:
+
+        if is_vercel:
+            logger.info(
+                "Running on Vercel. Persistent APScheduler disabled."
+            )
+        else:
+            logger.info(
+                "Scheduler disabled by configuration."
+            )
+
+    # ---------------------------------------------------------
+    # Application is ready
+    # ---------------------------------------------------------
+
     yield
 
-    if scheduler.running:
-        scheduler.shutdown(wait=False)
+    # ---------------------------------------------------------
+    # Shutdown
+    # ---------------------------------------------------------
+
+    if settings.enable_scheduler and not is_vercel:
+        try:
+            scheduler.shutdown(wait=False)
+            logger.info("Local scheduler stopped.")
+        except Exception:
+            pass
 
 
-app = FastAPI(title=settings.app_name, version="5.0.0", lifespan=lifespan)
+# ---------------------------------------------------------
+# FastAPI application
+# ---------------------------------------------------------
 
-allowed_hosts = [h.strip() for h in settings.allowed_hosts.split(",") if h.strip()]
+app = FastAPI(
+    title=settings.app_name,
+    version="5.0.1",
+    lifespan=lifespan,
+)
+
+
+# ---------------------------------------------------------
+# Trusted hosts
+# ---------------------------------------------------------
+
+allowed_hosts = [
+    h.strip()
+    for h in settings.allowed_hosts.split(",")
+    if h.strip()
+]
+
 if allowed_hosts and allowed_hosts != ["*"]:
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=allowed_hosts,
+    )
+
+
+# ---------------------------------------------------------
+# Session middleware
+# ---------------------------------------------------------
 
 app.add_middleware(
     SessionMiddleware,
@@ -113,47 +214,130 @@ app.add_middleware(
     https_only=settings.environment.lower() == "production",
 )
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-app.include_router(router, prefix="/api")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+# ---------------------------------------------------------
+# Static files
+# ---------------------------------------------------------
+
+app.mount(
+    "/static",
+    StaticFiles(directory=str(BASE_DIR / "static")),
+    name="static",
+)
 
 
-@app.get("/", response_class=HTMLResponse)
+# ---------------------------------------------------------
+# API
+# ---------------------------------------------------------
+
+app.include_router(
+    router,
+    prefix="/api",
+)
+
+
+# ---------------------------------------------------------
+# Templates
+# ---------------------------------------------------------
+
+templates = Jinja2Templates(
+    directory=str(BASE_DIR / "templates"),
+)
+
+
+# ---------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------
+
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+)
 def dashboard(request: Request):
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"app_name": settings.app_name},
+        context={
+            "app_name": settings.app_name,
+        },
     )
 
+
+# ---------------------------------------------------------
+# Settings
+# ---------------------------------------------------------
 
 @app.get("/settings")
 def settings_page():
+
     return RedirectResponse("/")
 
 
-@app.get("/read/news/{article_id}", response_class=HTMLResponse)
-def article_reader(request: Request, article_id: int):
+# ---------------------------------------------------------
+# News reader
+# ---------------------------------------------------------
+
+@app.get(
+    "/read/news/{article_id}",
+    response_class=HTMLResponse,
+)
+def article_reader(
+    request: Request,
+    article_id: int,
+):
+
     return templates.TemplateResponse(
         request=request,
         name="reader.html",
-        context={"app_name": settings.app_name, "article_id": article_id},
+        context={
+            "app_name": settings.app_name,
+            "article_id": article_id,
+        },
     )
 
 
-@app.get("/read/news-research/{item_id}", response_class=HTMLResponse)
-def research_news_reader(request: Request, item_id: int):
+# ---------------------------------------------------------
+# Research news reader
+# ---------------------------------------------------------
+
+@app.get(
+    "/read/news-research/{item_id}",
+    response_class=HTMLResponse,
+)
+def research_news_reader(
+    request: Request,
+    item_id: int,
+):
+
     return templates.TemplateResponse(
         request=request,
         name="reader.html",
-        context={"app_name": settings.app_name, "article_id": item_id},
+        context={
+            "app_name": settings.app_name,
+            "article_id": item_id,
+        },
     )
 
 
-@app.get("/read/paper/{item_id}", response_class=HTMLResponse)
-def paper_reader(request: Request, item_id: int):
+# ---------------------------------------------------------
+# Research paper reader
+# ---------------------------------------------------------
+
+@app.get(
+    "/read/paper/{item_id}",
+    response_class=HTMLResponse,
+)
+def paper_reader(
+    request: Request,
+    item_id: int,
+):
+
     return templates.TemplateResponse(
         request=request,
         name="paper_reader.html",
-        context={"app_name": settings.app_name, "item_id": item_id},
+        context={
+            "app_name": settings.app_name,
+            "item_id": item_id,
+        },
     )
