@@ -1,7 +1,5 @@
 import logging
-import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,221 +12,138 @@ from starlette.middleware.sessions import SessionMiddleware
 from .api import router
 from .config import settings
 from .db import init_db
-from .services.news_pipeline import (
-    seed_interests,
-    fetch_official_and_process_news,
-    fetch_aggregators_and_process_news,
-    fetch_currents_and_process_news,
-    fetch_research_and_process_news,
+from .services.news_pipeline import seed_interests
+
+
+# =========================================================
+# Logging
+# =========================================================
+
+logging.basicConfig(
+    level=logging.INFO,
 )
-
-
-logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
 
+# =========================================================
+# Paths
+# =========================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+# =========================================================
+# Application lifespan
+# =========================================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Application startup/shutdown lifecycle.
 
-    On Vercel:
-        No persistent scheduler is started.
+    Vercel runs this application as a serverless function,
+    so there is intentionally NO persistent background scheduler.
 
-    Locally:
-        APScheduler is started so the application can continuously
-        collect news and research.
+    Scheduled tasks such as:
+        - news ingestion
+        - research ingestion
+        - morning Gmail digest
+
+    are handled through HTTP cron endpoints.
     """
 
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
     # Database initialization
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
 
-    (PROJECT_DIR / "data").mkdir(parents=True, exist_ok=True)
-
-    init_db()
-    seed_interests()
-
-    # ---------------------------------------------------------
-    # Detect Vercel
-    # ---------------------------------------------------------
-
-    is_vercel = bool(os.getenv("VERCEL"))
-
-    # ---------------------------------------------------------
-    # Local scheduler only
-    # ---------------------------------------------------------
-
-    if settings.enable_scheduler and not is_vercel:
-
-        # IMPORTANT:
-        # APScheduler is imported only here.
-        # Vercel therefore doesn't need APScheduler merely to
-        # import and initialize the FastAPI application.
-
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-        scheduler = AsyncIOScheduler()
-
-        # Official sources
-        scheduler.add_job(
-            fetch_official_and_process_news,
-            "interval",
-            minutes=max(5, settings.official_poll_minutes),
-            id="official-news",
-            replace_existing=True,
-            coalesce=True,
-            max_instances=1,
-            misfire_grace_time=120,
-            next_run_time=datetime.now(timezone.utc)
-            + timedelta(seconds=3),
-        )
-
-        # Aggregators
-        scheduler.add_job(
-            fetch_aggregators_and_process_news,
-            "interval",
-            minutes=max(10, settings.aggregator_poll_minutes),
-            id="aggregator-news",
-            replace_existing=True,
-            coalesce=True,
-            max_instances=1,
-            misfire_grace_time=120,
-            next_run_time=datetime.now(timezone.utc)
-            + timedelta(seconds=7),
-        )
-
-        # Currents
-        if settings.currents_api_key:
-
-            scheduler.add_job(
-                fetch_currents_and_process_news,
-                "interval",
-                minutes=max(15, settings.currents_poll_minutes),
-                id="currents-news",
-                replace_existing=True,
-                coalesce=True,
-                max_instances=1,
-                misfire_grace_time=120,
-                next_run_time=datetime.now(timezone.utc)
-                + timedelta(seconds=10),
-            )
-
-        # Research
-        if settings.enable_research_collectors:
-
-            scheduler.add_job(
-                fetch_research_and_process_news,
-                "interval",
-                minutes=max(15, settings.research_poll_minutes),
-                id="research-news",
-                replace_existing=True,
-                coalesce=True,
-                max_instances=1,
-                misfire_grace_time=120,
-                next_run_time=datetime.now(timezone.utc)
-                + timedelta(seconds=14),
-            )
-
-        scheduler.start()
+    try:
+        init_db()
+        seed_interests()
 
         logger.info(
-            "Local scheduler started: "
-            "official=%sm, aggregators=%sm, currents=%sm, research=%sm",
-            settings.official_poll_minutes,
-            settings.aggregator_poll_minutes,
-            settings.currents_poll_minutes,
-            settings.research_poll_minutes,
+            "NewsRadar startup completed successfully."
         )
 
-    else:
-
-        if is_vercel:
-            logger.info(
-                "Running on Vercel. Persistent APScheduler disabled."
-            )
-        else:
-            logger.info(
-                "Scheduler disabled by configuration."
-            )
-
-    # ---------------------------------------------------------
-    # Application is ready
-    # ---------------------------------------------------------
+    except Exception:
+        logger.exception(
+            "NewsRadar startup failed."
+        )
+        raise
 
     yield
 
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
     # Shutdown
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
 
-    if settings.enable_scheduler and not is_vercel:
-        try:
-            scheduler.shutdown(wait=False)
-            logger.info("Local scheduler stopped.")
-        except Exception:
-            pass
+    logger.info(
+        "NewsRadar application shutting down."
+    )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # FastAPI application
-# ---------------------------------------------------------
+# =========================================================
 
 app = FastAPI(
     title=settings.app_name,
     version="5.0.1",
+    description=(
+        "Personal technology news and research monitor "
+        "with Gmail notifications."
+    ),
     lifespan=lifespan,
 )
 
 
-# ---------------------------------------------------------
-# Trusted hosts
-# ---------------------------------------------------------
+# =========================================================
+# Trusted host middleware
+# =========================================================
 
 allowed_hosts = [
-    h.strip()
-    for h in settings.allowed_hosts.split(",")
-    if h.strip()
+    host.strip()
+    for host in settings.allowed_hosts.split(",")
+    if host.strip()
 ]
 
 if allowed_hosts and allowed_hosts != ["*"]:
-
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=allowed_hosts,
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Session middleware
-# ---------------------------------------------------------
+# =========================================================
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     same_site="lax",
-    https_only=settings.environment.lower() == "production",
+    https_only=(
+        settings.environment.lower() == "production"
+    ),
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Static files
-# ---------------------------------------------------------
+# =========================================================
 
 app.mount(
     "/static",
-    StaticFiles(directory=str(BASE_DIR / "static")),
+    StaticFiles(
+        directory=str(BASE_DIR / "static"),
+    ),
     name="static",
 )
 
 
-# ---------------------------------------------------------
-# API
-# ---------------------------------------------------------
+# =========================================================
+# API routes
+# =========================================================
 
 app.include_router(
     router,
@@ -236,24 +151,27 @@ app.include_router(
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Templates
-# ---------------------------------------------------------
+# =========================================================
 
 templates = Jinja2Templates(
     directory=str(BASE_DIR / "templates"),
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Dashboard
-# ---------------------------------------------------------
+# =========================================================
 
 @app.get(
     "/",
     response_class=HTMLResponse,
 )
 def dashboard(request: Request):
+    """
+    Main NewsRadar dashboard.
+    """
 
     return templates.TemplateResponse(
         request=request,
@@ -264,19 +182,27 @@ def dashboard(request: Request):
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Settings
-# ---------------------------------------------------------
+# =========================================================
 
-@app.get("/settings")
+@app.get(
+    "/settings",
+)
 def settings_page():
+    """
+    Settings are handled from the dashboard UI.
+    """
 
-    return RedirectResponse("/")
+    return RedirectResponse(
+        url="/",
+        status_code=307,
+    )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # News reader
-# ---------------------------------------------------------
+# =========================================================
 
 @app.get(
     "/read/news/{article_id}",
@@ -286,6 +212,9 @@ def article_reader(
     request: Request,
     article_id: int,
 ):
+    """
+    Internal reader for technology news articles.
+    """
 
     return templates.TemplateResponse(
         request=request,
@@ -297,9 +226,9 @@ def article_reader(
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Research news reader
-# ---------------------------------------------------------
+# =========================================================
 
 @app.get(
     "/read/news-research/{item_id}",
@@ -309,6 +238,9 @@ def research_news_reader(
     request: Request,
     item_id: int,
 ):
+    """
+    Internal reader for research-related news.
+    """
 
     return templates.TemplateResponse(
         request=request,
@@ -320,9 +252,9 @@ def research_news_reader(
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Research paper reader
-# ---------------------------------------------------------
+# =========================================================
 
 @app.get(
     "/read/paper/{item_id}",
@@ -332,6 +264,9 @@ def paper_reader(
     request: Request,
     item_id: int,
 ):
+    """
+    Research paper reader with abstract/metadata/PDF support.
+    """
 
     return templates.TemplateResponse(
         request=request,
