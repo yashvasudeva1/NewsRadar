@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -44,14 +45,9 @@ async def lifespan(app: FastAPI):
     Application startup/shutdown lifecycle.
 
     Vercel runs this application as a serverless function,
-    so there is intentionally NO persistent background scheduler.
-
-    Scheduled tasks such as:
-        - news ingestion
-        - research ingestion
-        - morning Gmail digest
-
-    are handled through HTTP cron endpoints.
+    so persistent background tasks are disabled on Vercel.
+    In local development and self-hosted environments, a lightweight
+    asyncio task handles periodic background ingestion.
     """
 
     # -----------------------------------------------------
@@ -74,11 +70,50 @@ async def lifespan(app: FastAPI):
         )
         raise
 
+    background_task = None
+    if not os.getenv("VERCEL") and settings.enable_scheduler:
+        async def background_collector():
+            logger.info("Local background collector started.")
+            try:
+                if settings.initial_fetch_on_startup:
+                    await asyncio.sleep(2)
+                    try:
+                        logger.info("Running initial background news ingestion...")
+                        from .services.news_pipeline import (
+                            fetch_official_and_process_news,
+                            fetch_aggregators_and_process_news,
+                        )
+                        await fetch_official_and_process_news(send_email=False)
+                        await fetch_aggregators_and_process_news(send_email=False)
+                    except Exception as exc:
+                        logger.warning("Initial background ingestion failed: %s", exc)
+
+                while True:
+                    await asyncio.sleep(max(60, settings.official_poll_minutes * 60))
+                    try:
+                        from .services.news_pipeline import fetch_official_and_process_news
+                        await fetch_official_and_process_news(send_email=False)
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as exc:
+                        logger.warning("Periodic background ingestion failed: %s", exc)
+            except asyncio.CancelledError:
+                pass
+
+        background_task = asyncio.create_task(background_collector())
+
     yield
 
     # -----------------------------------------------------
     # Shutdown
     # -----------------------------------------------------
+
+    if background_task:
+        background_task.cancel()
+        try:
+            await background_task
+        except asyncio.CancelledError:
+            pass
 
     logger.info(
         "NewsRadar application shutting down."

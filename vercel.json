@@ -1,6 +1,18 @@
 {
   "crons": [
     {
+      "path": "/api/cron/ingest/official",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/ingest/aggregators",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/ingest/research",
+      "schedule": "0 */2 * * *"
+    },
+    {
       "path": "/api/cron/morning-digest",
       "schedule": "30 3 * * *"
     }

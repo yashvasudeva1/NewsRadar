@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     currents_poll_minutes: int = 30
     source_concurrency: int = 6
     max_items_per_source: int = 80
+    news_category: str = "technology"
+    latest_pages: int = 2
+    latest_page_size: int = 20
 
     # Research / papers
     enable_research_collectors: bool = True

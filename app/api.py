@@ -47,53 +47,68 @@ def is_official_domain(domain: str) -> bool:
     return any(domain == d or domain.endswith("." + d) for d in OFFICIAL_DOMAINS)
 
 
+def safe_json_loads(value: str | None, default=None):
+    if not value:
+        return default if default is not None else []
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return default if default is not None else []
+
+
 def article_out(article: Article) -> ArticleOut:
-    categories = json.loads(article.categories or "[]")
+    categories = safe_json_loads(article.categories, default=[])
+    matched = safe_json_loads(article.matched_keywords, default=[])
     return ArticleOut(
         id=article.id,
-        title=article.title,
-        description=article.description,
-        url=article.url,
-        author=article.author,
-        image_url=article.image_url,
-        language=article.language,
-        categories=categories,
+        title=article.title or "",
+        description=article.description or "",
+        url=article.url or "",
+        author=article.author or "",
+        image_url=article.image_url or "",
+        language=article.language or "en",
+        categories=categories if isinstance(categories, list) else [],
         published_at=article.published_at,
-        source_domain=article.source_domain,
-        relevance_score=article.relevance_score,
-        matched_keywords=json.loads(article.matched_keywords or "[]"),
-        is_saved=article.is_saved,
-        is_official=is_official_domain(article.source_domain),
+        source_domain=article.source_domain or "",
+        relevance_score=article.relevance_score or 0.0,
+        matched_keywords=matched if isinstance(matched, list) else [],
+        is_saved=bool(article.is_saved),
+        is_official=is_official_domain(article.source_domain or ""),
     )
 
 
 def is_research_news(article: Article) -> bool:
     try:
-        return "research news" in {str(x).strip().lower() for x in json.loads(article.categories or "[]")}
-    except (TypeError, json.JSONDecodeError):
+        return "research news" in {str(x).strip().lower() for x in safe_json_loads(article.categories, default=[])}
+    except Exception:
         return False
 
 
 def research_out(item: ResearchItem) -> ResearchItemOut:
-    try:
-        authors = json.loads(item.authors or "[]")
-    except (TypeError, json.JSONDecodeError):
-        authors = []
-    try:
-        categories = json.loads(item.categories or "[]")
-    except (TypeError, json.JSONDecodeError):
-        categories = []
-    try:
-        matches = json.loads(item.matched_keywords or "[]")
-    except (TypeError, json.JSONDecodeError):
-        matches = []
+    authors = safe_json_loads(item.authors, default=[])
+    categories = safe_json_loads(item.categories, default=[])
+    matches = safe_json_loads(item.matched_keywords, default=[])
     return ResearchItemOut(
-        id=item.id, external_id=item.external_id, item_type=item.item_type, title=item.title,
-        abstract=item.abstract, authors=authors, categories=categories, source=item.source,
-        source_domain=item.source_domain, venue=item.venue, doi=item.doi, paper_id=item.paper_id,
-        landing_url=item.landing_url, pdf_url=item.pdf_url, published_at=item.published_at,
-        updated_at=item.updated_at, citation_count=item.citation_count, relevance_score=item.relevance_score,
-        matched_keywords=matches, is_saved=item.is_saved,
+        id=item.id,
+        external_id=item.external_id or "",
+        item_type=item.item_type or "paper",
+        title=item.title or "",
+        abstract=item.abstract or "",
+        authors=authors if isinstance(authors, list) else [],
+        categories=categories if isinstance(categories, list) else [],
+        source=item.source or "",
+        source_domain=item.source_domain or "",
+        venue=item.venue or "",
+        doi=item.doi or "",
+        paper_id=item.paper_id or "",
+        landing_url=item.landing_url or "",
+        pdf_url=item.pdf_url or "",
+        published_at=item.published_at,
+        updated_at=item.updated_at,
+        citation_count=item.citation_count or 0,
+        relevance_score=item.relevance_score or 0.0,
+        matched_keywords=matches if isinstance(matches, list) else [],
+        is_saved=bool(item.is_saved),
     )
 
 
@@ -116,7 +131,7 @@ def get_news(
     limit: int = Query(default=60, ge=1, le=200),
 ):
     stmt = select(Article).where(Article.is_hidden.is_(False))
-    research_clause = Article.categories.ilike('%"Research News"%')
+    research_clause = func.coalesce(Article.categories, "").ilike('%"Research News"%')
     stmt = stmt.where(research_clause if research_news else ~research_clause)
 
     since = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -220,9 +235,9 @@ def stats(db: Session = Depends(get_db)):
         "last_currents_fetch_at": get_state(db, "last_currents_fetch_at", ""),
         "last_research_fetch_at": get_state(db, "last_research_fetch_at", ""),
         "last_research_fetch_status": get_state(db, "last_research_fetch_status", "never"),
-        "last_research_source_status": json.loads(get_state(db, "last_research_source_status", "{}") or "{}"),
+        "last_research_source_status": safe_json_loads(get_state(db, "last_research_source_status", "{}"), default={}),
         "last_email_at": get_state(db, "last_email_at", ""),
-        "last_source_status": json.loads(get_state(db, "last_source_status", "{}") or "{}"),
+        "last_source_status": safe_json_loads(get_state(db, "last_source_status", "{}"), default={}),
         "notification_threshold": settings.notification_threshold,
         "notification_recipient": get_state(db, "notification_recipient", settings.notification_recipient),
     }
@@ -333,23 +348,31 @@ def test_notification(db: Session = Depends(get_db)):
 
 @router.post("/fetch-now")
 async def fetch_now():
-    if settings.environment != "development":
-        raise HTTPException(403, "Dashboard fetch is disabled outside development")
-    return await fetch_and_process_news(send_email=True)
+    try:
+        if os.getenv("VERCEL"):
+            return await fetch_official_and_process_news(send_email=False)
+        return await fetch_and_process_news(send_email=True)
+    except Exception as exc:
+        logger.exception("Manual fetch-now failed")
+        raise HTTPException(500, f"Fetch failed: {exc}")
 
 
 @router.post("/fetch-now/official")
 async def fetch_official_now():
-    if settings.environment != "development":
-        raise HTTPException(403, "Dashboard fetch is disabled outside development")
-    return await fetch_official_and_process_news(send_email=True)
+    try:
+        return await fetch_official_and_process_news(send_email=False)
+    except Exception as exc:
+        logger.exception("Manual official fetch failed")
+        raise HTTPException(500, f"Official fetch failed: {exc}")
 
 
 @router.post("/fetch-now/aggregators")
 async def fetch_aggregators_now():
-    if settings.environment != "development":
-        raise HTTPException(403, "Dashboard fetch is disabled outside development")
-    return await fetch_aggregators_and_process_news(send_email=True)
+    try:
+        return await fetch_aggregators_and_process_news(send_email=False)
+    except Exception as exc:
+        logger.exception("Manual aggregators fetch failed")
+        raise HTTPException(500, f"Aggregators fetch failed: {exc}")
 
 
 def _verify_cron_request(authorization: str | None, x_cron_token: str | None) -> None:
@@ -525,9 +548,11 @@ def hide_research(item_id: int, db: Session = Depends(get_db)):
 
 @router.post("/research/fetch-now")
 async def fetch_research_now():
-    if settings.environment != "development":
-        raise HTTPException(403, "Dashboard research fetch is disabled outside development")
-    return await fetch_research_and_process_news(send_email=True)
+    try:
+        return await fetch_research_and_process_news(send_email=False)
+    except Exception as exc:
+        logger.exception("Manual research fetch failed")
+        raise HTTPException(500, f"Research fetch failed: {exc}")
 
 
 @router.get("/reader/article/{article_id}")
