@@ -2,15 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/ingest/official",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/ingest/aggregators",
-      "schedule": "*/30 * * * *"
+      "schedule": "30 2 * * *"
     },
     {
       "path": "/api/cron/ingest/research",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/morning-digest",
