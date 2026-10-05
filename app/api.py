@@ -112,8 +112,19 @@ def research_out(item: ResearchItem) -> ResearchItemOut:
     )
 
 
+async def _bootstrap_if_empty(db: Session, model, fetcher) -> None:
+    """On serverless cold starts the DB can be empty; populate it once."""
+    try:
+        if db.scalar(select(func.count()).select_from(model)):
+            return
+        await fetcher(send_email=False)
+        db.expire_all()
+    except Exception:
+        logger.exception("Bootstrap fetch failed")
+
+
 @router.get("/news", response_model=list[ArticleOut])
-def get_news(
+async def get_news(
     db: Session = Depends(get_db),
     q: str | None = Query(default=None),
     topic: str | None = Query(default=None),
@@ -130,6 +141,7 @@ def get_news(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=60, ge=1, le=200),
 ):
+    await _bootstrap_if_empty(db, Article, fetch_official_and_process_news)
     stmt = select(Article).where(Article.is_hidden.is_(False))
     research_clause = func.coalesce(Article.categories, "").ilike('%"Research News"%')
     stmt = stmt.where(research_clause if research_news else ~research_clause)
@@ -443,7 +455,7 @@ async def manual_fetch(
 
 
 @router.get("/research/items", response_model=list[ResearchItemOut])
-def get_research_items(
+async def get_research_items(
     db: Session = Depends(get_db),
     q: str | None = Query(default=None),
     item_type: str = Query(default="all", pattern="^(all|paper|news)$"),
@@ -458,6 +470,7 @@ def get_research_items(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=60, ge=1, le=200),
 ):
+    await _bootstrap_if_empty(db, ResearchItem, fetch_research_and_process_news)
     stmt = select(ResearchItem).where(ResearchItem.is_hidden.is_(False))
     since = datetime.now(timezone.utc).replace(tzinfo=None)
     from datetime import timedelta
