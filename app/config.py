@@ -100,7 +100,17 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    import os
+
+    s = Settings()
+    if not os.getenv("DATABASE_URL"):
+        # Neon / Vercel Postgres integrations may expose different names.
+        for name in ("POSTGRES_URL", "DATABASE_URL_UNPOOLED", "POSTGRES_PRISMA_URL", "NEON_DATABASE_URL"):
+            value = os.getenv(name)
+            if value:
+                s.database_url = value
+                break
+    return s
 
 
 settings = get_settings()
