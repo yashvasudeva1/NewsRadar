@@ -179,6 +179,9 @@ async def ingest(items: list[dict], source_status: dict, channel: str, send_emai
 
     with session_scope() as db:
         interests = db.scalars(select(Interest).where(Interest.enabled.is_(True))).all()
+        existing_hashes = set(db.scalars(select(Article.content_hash)).all())
+        existing_ids = set(db.scalars(select(Article.external_id)).all())
+        threshold = float(get_state(db, "notification_threshold", str(settings.notification_threshold)) or settings.notification_threshold)
 
         for raw in items:
             title = (raw.get("title") or "").strip()
@@ -203,22 +206,16 @@ async def ingest(items: list[dict], source_status: dict, channel: str, send_emai
             topic_categories = classify_topics(title, raw.get("description") or "")
             categories = list(dict.fromkeys(["Technology", *[str(x) for x in categories], *topic_categories]))
 
-            external_id = raw.get("external_id") or stable_hash(title, url)
-            # Cross-provider de-duplication. Prefer exact external id, then a
-            # normalized title hash so the same release isn't repeated by GDELT,
-            # Google News and Currents.
+            external_id = (raw.get("external_id") or stable_hash(title, url))[:128]
             content_hash = title_hash(title)
-            existing = db.scalar(
-                select(Article).where(
-                    or_(Article.external_id == external_id, Article.content_hash == content_hash)
-                )
-            )
-            if existing:
+            if external_id in existing_ids or content_hash in existing_hashes:
                 continue
+            existing_ids.add(external_id)
+            existing_hashes.add(content_hash)
 
             result = score_article({**raw, "source_kind": source_kind}, interests)
             article = Article(
-                external_id=external_id[:128],
+                external_id=external_id,
                 title=title,
                 description=raw.get("description", "") or "",
                 url=url,
@@ -233,12 +230,10 @@ async def ingest(items: list[dict], source_status: dict, channel: str, send_emai
                 matched_keywords=json.dumps(result.matched_keywords),
             )
             db.add(article)
-            db.flush()
             created += 1
 
-            threshold = float(get_state(db, "notification_threshold", str(settings.notification_threshold)) or settings.notification_threshold)
             if result.score >= threshold:
-                db.add(Notification(article_id=article.id, status="pending"))
+                db.add(Notification(article=article, status="pending"))
                 interesting += 1
                 pending_created += 1
 

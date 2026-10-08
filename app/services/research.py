@@ -509,20 +509,26 @@ def ingest_research(items: list[dict]) -> dict:
         from .news_pipeline import get_state
         threshold = float(get_state(db, "notification_threshold", str(settings.notification_threshold)) or settings.notification_threshold)
 
+        from sqlalchemy import select
+        existing_ext = set(db.scalars(select(ResearchItem.external_id)).all())
+        existing_doi = {x for x in db.scalars(select(ResearchItem.doi)).all() if x}
+        existing_paper_id = {x for x in db.scalars(select(ResearchItem.paper_id)).all() if x}
+
         for raw in items:
             title = (raw.get("title") or "").strip()
             if not title:
                 continue
             ext = str(raw.get("external_id") or f"paper:{_hash(title)}")[:200]
-            from sqlalchemy import select, or_
-            same = [ResearchItem.external_id == ext]
-            if raw.get("doi"):
-                same.append(ResearchItem.doi == raw.get("doi"))
-            if raw.get("paper_id"):
-                same.append(ResearchItem.paper_id == raw.get("paper_id"))
-            existing = db.scalar(select(ResearchItem).where(or_(*same)))
-            if existing:
+            doi = raw.get("doi") or ""
+            paper_id = raw.get("paper_id") or ""
+            if ext in existing_ext or (doi and doi in existing_doi) or (paper_id and paper_id in existing_paper_id):
                 continue
+            existing_ext.add(ext)
+            if doi:
+                existing_doi.add(doi)
+            if paper_id:
+                existing_paper_id.add(paper_id)
+
             abstract = raw.get("abstract") or ""
             if not is_research_tech(title, abstract, raw.get("categories") or []):
                 continue
@@ -537,8 +543,8 @@ def ingest_research(items: list[dict]) -> dict:
                 source=raw.get("source", ""),
                 source_domain=raw.get("source_domain", ""),
                 venue=raw.get("venue", ""),
-                doi=raw.get("doi", ""),
-                paper_id=raw.get("paper_id", ""),
+                doi=doi,
+                paper_id=paper_id,
                 landing_url=raw.get("landing_url", ""),
                 pdf_url=raw.get("pdf_url", ""),
                 published_at=_coerce_dt(raw.get("published_at")),
@@ -548,13 +554,12 @@ def ingest_research(items: list[dict]) -> dict:
                 matched_keywords=json.dumps(matches),
             )
             db.add(item)
-            db.flush()
             created += 1
             if item.item_type == "paper":
                 paper_count += 1
             else:
                 news_count += 1
             if score >= threshold:
-                db.add(ResearchNotification(research_item_id=item.id, status="pending"))
+                db.add(ResearchNotification(research_item=item, status="pending"))
                 interesting += 1
     return {"fetched": len(items), "created": created, "papers_created": paper_count, "news_created": news_count, "interesting": interesting}

@@ -37,7 +37,7 @@ engine_kwargs = {
 # Keep a small pool for serverless warm instances. Neon should supply a pooled
 # connection URL when available.
 if database_url.startswith("postgresql+"):
-    engine_kwargs.update({"pool_size": 3, "max_overflow": 2, "pool_timeout": 10})
+    engine_kwargs.update({"pool_size": 3, "max_overflow": 2, "pool_timeout": 10, "pool_recycle": 60})
 
 engine = create_engine(
     database_url,
