@@ -206,7 +206,7 @@ async def ingest(items: list[dict], source_status: dict, channel: str, send_emai
             topic_categories = classify_topics(title, raw.get("description") or "")
             categories = list(dict.fromkeys(["Technology", *[str(x) for x in categories], *topic_categories]))
 
-            external_id = (raw.get("external_id") or stable_hash(title, url))[:128]
+            external_id = (raw.get("external_id") or stable_hash(title, url))[:256]
             content_hash = title_hash(title)
             if external_id in existing_ids or content_hash in existing_hashes:
                 continue
@@ -215,17 +215,17 @@ async def ingest(items: list[dict], source_status: dict, channel: str, send_emai
 
             result = score_article({**raw, "source_kind": source_kind}, interests)
             article = Article(
-                external_id=external_id,
-                title=title,
+                external_id=external_id[:256],
+                title=title[:2000],
                 description=raw.get("description", "") or "",
-                url=url,
-                author=raw.get("author", "") or "",
-                image_url=raw.get("image", "") or "",
-                language=raw.get("language", settings.news_language) or settings.news_language,
+                url=url[:2000],
+                author=(raw.get("author", "") or "")[:500],
+                image_url=(raw.get("image", "") or "")[:2000],
+                language=(raw.get("language", settings.news_language) or settings.news_language)[:50],
                 categories=json.dumps(categories),
                 published_at=_normalize_published(raw.get("published_at")),
-                source_domain=raw.get("source_domain", "") or "",
-                content_hash=content_hash,
+                source_domain=(raw.get("source_domain", "") or "")[:500],
+                content_hash=content_hash[:64],
                 relevance_score=result.score,
                 matched_keywords=json.dumps(result.matched_keywords),
             )

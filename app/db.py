@@ -3,7 +3,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -53,8 +53,21 @@ SessionLocal = sessionmaker(
 )
 
 
+_db_initialized = False
+
+
+def ensure_db_initialized() -> None:
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+        except Exception:
+            pass
+
+
 @contextmanager
 def session_scope():
+    ensure_db_initialized()
     db = SessionLocal()
     try:
         yield db
@@ -67,5 +80,34 @@ def session_scope():
 
 
 def init_db() -> None:
+    global _db_initialized
     from . import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    if engine.dialect.name == "postgresql":
+        stmts = [
+            "ALTER TABLE articles ALTER COLUMN title TYPE TEXT;",
+            "ALTER TABLE articles ALTER COLUMN url TYPE TEXT;",
+            "ALTER TABLE articles ALTER COLUMN author TYPE TEXT;",
+            "ALTER TABLE articles ALTER COLUMN image_url TYPE TEXT;",
+            "ALTER TABLE articles ALTER COLUMN source_domain TYPE TEXT;",
+            "ALTER TABLE articles ALTER COLUMN external_id TYPE VARCHAR(256);",
+            "ALTER TABLE articles ALTER COLUMN language TYPE VARCHAR(50);",
+            "ALTER TABLE research_items ALTER COLUMN title TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN landing_url TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN pdf_url TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN source_domain TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN venue TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN source TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN doi TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN paper_id TYPE TEXT;",
+            "ALTER TABLE research_items ALTER COLUMN external_id TYPE VARCHAR(300);",
+            "ALTER TABLE research_items ALTER COLUMN item_type TYPE VARCHAR(50);",
+        ]
+        with engine.connect() as conn:
+            for stmt in stmts:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except Exception:
+                    pass
+    _db_initialized = True

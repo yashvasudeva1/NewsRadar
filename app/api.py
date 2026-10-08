@@ -12,7 +12,7 @@ from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import SessionLocal
+from .db import SessionLocal, ensure_db_initialized
 from .models import Article, Interest, Notification, ResearchItem, ResearchNotification, SystemState
 from .schemas import ArticleOut, InterestCreate, InterestUpdate, ResearchItemOut
 from .services.gmail import GmailService
@@ -35,6 +35,7 @@ router = APIRouter()
 
 
 def get_db():
+    ensure_db_initialized()
     db = SessionLocal()
     try:
         yield db
@@ -427,9 +428,8 @@ async def cron_ingest_official(
     try:
         return await fetch_official_and_process_news(send_email=False)
     except Exception as exc:
-        import traceback
         logger.exception("cron_ingest_official failed: %s", exc)
-        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
+        raise HTTPException(500, detail=f"Official ingestion failed: {exc}")
 
 
 @router.get("/cron/ingest/aggregators")
@@ -441,9 +441,8 @@ async def cron_ingest_aggregators(
     try:
         return await fetch_aggregators_and_process_news(send_email=False)
     except Exception as exc:
-        import traceback
         logger.exception("cron_ingest_aggregators failed: %s", exc)
-        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
+        raise HTTPException(500, detail=f"Aggregators ingestion failed: {exc}")
 
 
 @router.get("/cron/ingest/research")
@@ -455,9 +454,8 @@ async def cron_ingest_research(
     try:
         return await fetch_research_and_process_news(send_email=False)
     except Exception as exc:
-        import traceback
         logger.exception("cron_ingest_research failed: %s", exc)
-        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
+        raise HTTPException(500, detail=f"Research ingestion failed: {exc}")
 
 
 @router.get("/cron/ingest/currents")
@@ -469,9 +467,8 @@ async def cron_ingest_currents(
     try:
         return await fetch_currents_and_process_news(send_email=False)
     except Exception as exc:
-        import traceback
         logger.exception("cron_ingest_currents failed: %s", exc)
-        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
+        raise HTTPException(500, detail=f"Currents ingestion failed: {exc}")
 
 
 @router.get("/admin/fetch")

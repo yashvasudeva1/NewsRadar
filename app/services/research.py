@@ -518,9 +518,9 @@ def ingest_research(items: list[dict]) -> dict:
             title = (raw.get("title") or "").strip()
             if not title:
                 continue
-            ext = str(raw.get("external_id") or f"paper:{_hash(title)}")[:200]
-            doi = raw.get("doi") or ""
-            paper_id = raw.get("paper_id") or ""
+            ext = str(raw.get("external_id") or f"paper:{_hash(title)}")[:300]
+            doi = str(raw.get("doi") or "")[:500]
+            paper_id = str(raw.get("paper_id") or "")[:500]
             if ext in existing_ext or (doi and doi in existing_doi) or (paper_id and paper_id in existing_paper_id):
                 continue
             existing_ext.add(ext)
@@ -535,18 +535,18 @@ def ingest_research(items: list[dict]) -> dict:
             score, matches = score_paper(title, abstract, interests)
             item = ResearchItem(
                 external_id=ext,
-                item_type=raw.get("item_type", "paper"),
-                title=title[:700],
+                item_type=str(raw.get("item_type", "paper"))[:50],
+                title=title[:2000],
                 abstract=abstract,
                 authors=json.dumps(raw.get("authors") or []),
                 categories=json.dumps(list(dict.fromkeys(raw.get("categories") or ["Research"]))),
-                source=raw.get("source", ""),
-                source_domain=raw.get("source_domain", ""),
-                venue=raw.get("venue", ""),
+                source=str(raw.get("source", "") or "")[:500],
+                source_domain=str(raw.get("source_domain", "") or "")[:500],
+                venue=str(raw.get("venue", "") or "")[:500],
                 doi=doi,
                 paper_id=paper_id,
-                landing_url=raw.get("landing_url", ""),
-                pdf_url=raw.get("pdf_url", ""),
+                landing_url=str(raw.get("landing_url", "") or "")[:2000],
+                pdf_url=str(raw.get("pdf_url", "") or "")[:2000],
                 published_at=_coerce_dt(raw.get("published_at")),
                 updated_at=_coerce_dt(raw.get("updated_at")),
                 citation_count=int(raw.get("citation_count") or 0),
