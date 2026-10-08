@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="app/static/logo.svg" alt="NewsRadar Logo" width="120" height="120" />
+</p>
+
 # NewsRadar
 
 NewsRadar is an automated technology intelligence radar and scholarly research monitoring system. It aggregates first-party engineering blogs, global tech news, and preprint academic papers into a unified, relevance-scored stream. The application features an integrated distraction-free reader and delivers a personalized top-five morning briefing directly to Gmail.

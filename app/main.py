@@ -254,7 +254,29 @@ def settings_page():
     include_in_schema=False,
 )
 def favicon():
+    logo_file = BASE_DIR / "static" / "logo.svg"
+    if logo_file.exists():
+        return Response(
+            content=logo_file.read_bytes(),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     return Response(status_code=204)
+
+
+@app.get(
+    "/favicon.svg",
+    include_in_schema=False,
+)
+def favicon_svg():
+    logo_file = BASE_DIR / "static" / "logo.svg"
+    if logo_file.exists():
+        return Response(
+            content=logo_file.read_bytes(),
+            media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    return Response(status_code=404)
 
 
 # =========================================================

@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#ffffff">
   <title>{{ app_name }}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/">NewsRadar</a>
+  <a class="brand" href="/">
+    <img src="/static/logo.svg" alt="NewsRadar logo" class="brand-logo" width="28" height="28">
+    <span>NewsRadar</span>
+  </a>
   <div class="top-actions">
     <span class="live-dot" title="Collectors active"></span>
     <button class="icon-btn" id="refreshBtn" title="Refresh">↻</button>

@@ -4,13 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{{ app_name }} · Settings</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <div class="brand">{{ app_name }}</div>
-      <div class="muted">Settings</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="/static/logo.svg" alt="NewsRadar logo" class="brand-logo" width="28" height="28" />
+      <div>
+        <div class="brand">{{ app_name }}</div>
+        <div class="muted">Settings</div>
+      </div>
     </div>
     <nav><a href="/">News</a><a href="/settings">Settings</a></nav>
   </header>
