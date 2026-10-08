@@ -424,7 +424,12 @@ async def cron_ingest_official(
     x_cron_token: str | None = Header(default=None),
 ):
     _verify_cron_request(authorization, x_cron_token)
-    return await fetch_official_and_process_news(send_email=False)
+    try:
+        return await fetch_official_and_process_news(send_email=False)
+    except Exception as exc:
+        import traceback
+        logger.exception("cron_ingest_official failed: %s", exc)
+        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
 
 
 @router.get("/cron/ingest/aggregators")
@@ -433,7 +438,12 @@ async def cron_ingest_aggregators(
     x_cron_token: str | None = Header(default=None),
 ):
     _verify_cron_request(authorization, x_cron_token)
-    return await fetch_aggregators_and_process_news(send_email=False)
+    try:
+        return await fetch_aggregators_and_process_news(send_email=False)
+    except Exception as exc:
+        import traceback
+        logger.exception("cron_ingest_aggregators failed: %s", exc)
+        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
 
 
 @router.get("/cron/ingest/research")
@@ -442,7 +452,12 @@ async def cron_ingest_research(
     x_cron_token: str | None = Header(default=None),
 ):
     _verify_cron_request(authorization, x_cron_token)
-    return await fetch_research_and_process_news(send_email=False)
+    try:
+        return await fetch_research_and_process_news(send_email=False)
+    except Exception as exc:
+        import traceback
+        logger.exception("cron_ingest_research failed: %s", exc)
+        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
 
 
 @router.get("/cron/ingest/currents")
@@ -451,7 +466,12 @@ async def cron_ingest_currents(
     x_cron_token: str | None = Header(default=None),
 ):
     _verify_cron_request(authorization, x_cron_token)
-    return await fetch_currents_and_process_news(send_email=False)
+    try:
+        return await fetch_currents_and_process_news(send_email=False)
+    except Exception as exc:
+        import traceback
+        logger.exception("cron_ingest_currents failed: %s", exc)
+        return {"ok": False, "error": str(exc), "traceback": traceback.format_exc()}
 
 
 @router.get("/admin/fetch")
