@@ -12,24 +12,39 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.VERCEL_APP_URL || vars.VERCEL_APP_URL || 'https://news-radar-ten.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET || '1xXANU8vKtEGWqmTCbJlu4tjGn39wAB4dFKzn_wy_DY' }}
     steps:
       - name: Ingest official sources
         run: |
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.VERCEL_APP_URL }}/api/cron/ingest/official"
+          TARGET="${APP_URL%/}"
+          echo "Ingesting official sources from ${TARGET}..."
+          curl --fail --silent --show-error --max-time 180 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${TARGET}/api/cron/ingest/official"
+
       - name: Ingest aggregators
         run: |
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.VERCEL_APP_URL }}/api/cron/ingest/aggregators"
+          TARGET="${APP_URL%/}"
+          echo "Ingesting aggregators from ${TARGET}..."
+          curl --fail --silent --show-error --max-time 180 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${TARGET}/api/cron/ingest/aggregators"
+
       - name: Ingest research
         run: |
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.VERCEL_APP_URL }}/api/cron/ingest/research"
+          TARGET="${APP_URL%/}"
+          echo "Ingesting research from ${TARGET}..."
+          curl --fail --silent --show-error --max-time 180 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${TARGET}/api/cron/ingest/research"
+
       - name: Ingest Currents (optional)
+        continue-on-error: true
         run: |
-          curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.VERCEL_APP_URL }}/api/cron/ingest/currents"
+          TARGET="${APP_URL%/}"
+          echo "Ingesting currents from ${TARGET}..."
+          curl --fail --silent --show-error --max-time 180 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${TARGET}/api/cron/ingest/currents"

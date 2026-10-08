@@ -299,9 +299,9 @@ async def fetch_auto(source: SourceDefinition, client: httpx.AsyncClient) -> lis
 async def fetch_official_sources() -> tuple[list[dict], dict]:
     items: list[dict] = []
     status: dict = {}
-    semaphore = asyncio.Semaphore(6)
+    semaphore = asyncio.Semaphore(settings.source_concurrency)
 
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(timeout=12.0) as client:
         async def one(source: SourceDefinition):
             async with semaphore:
                 try:

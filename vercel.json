@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "main.py": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/ingest/official",

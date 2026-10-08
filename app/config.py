@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     official_poll_minutes: int = 5
     aggregator_poll_minutes: int = 10
     currents_poll_minutes: int = 30
-    source_concurrency: int = 6
+    source_concurrency: int = 12
     max_items_per_source: int = 80
     news_category: str = "technology"
     latest_pages: int = 2
